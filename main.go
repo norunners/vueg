@@ -8,6 +8,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/dave/jennifer/jen"
+	"github.com/tdewolff/minify"
+	mhtml "github.com/tdewolff/minify/html"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"io"
@@ -20,6 +22,9 @@ func main() {
 	gofile := os.Getenv("GOFILE")
 	gopackage := os.Getenv("GOPACKAGE")
 
+	minifier := minify.New()
+	minifier.Add("text/html", &mhtml.Minifier{KeepEndTags: true})
+
 	templates, err := filepath.Glob("*.vue")
 	must(err)
 	for _, template := range templates {
@@ -30,15 +35,20 @@ func main() {
 			panic(fmt.Errorf("file conflict on name: %s", filename))
 		}
 
-		// Open the vue template file.
+		// Open the Vue template file.
 		file, err := os.Open(template)
 		must(err)
 
-		// Read the Vue template file into html nodes.
-		nodes := parse(file)
+		// Read and minify the Vue template.
+		buf := bytes.NewBuffer(nil)
+		err = minifier.Minify("text/html", buf, file)
+		must(err)
+
+		// Parse the Vue template file into html nodes.
+		nodes := parse(buf)
 		child := firstChild(nodes)
 
-		buf := bytes.NewBuffer(nil)
+		buf.Reset()
 		html.Render(buf, child)
 
 		// Generate the Go source.
